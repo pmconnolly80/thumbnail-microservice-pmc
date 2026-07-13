@@ -48,20 +48,19 @@ resource "aws_iam_role_policy" "lambda_s3_policy" {
     Statement = [
       {
         Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject"
-        ]
+        Action = ["s3:GetObject", "s3:PutObject"]
         Resource = "${data.aws_s3_bucket.images.arn}/*"
       },
       {
         Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
+        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "arn:aws:logs:*:*:*"
+      },
+      # ADD THIS BLOCK
+      {
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = aws_sqs_queue.thumbnail_complete.arn
       }
     ]
   })
@@ -93,6 +92,7 @@ resource "aws_lambda_function" "thumbnail_generator" {
   environment {
     variables = {
       THUMBNAIL_SIZES = "small,medium,large"
+      SQS_QUEUE_URL   = aws_sqs_queue.thumbnail_complete.url  # add this line
     }
   }
 
@@ -122,4 +122,9 @@ resource "aws_lambda_permission" "allow_s3" {
   function_name = aws_lambda_function.thumbnail_generator.function_name
   principal     = "s3.amazonaws.com"
   source_arn    = data.aws_s3_bucket.images.arn
+}
+
+resource "aws_sqs_queue" "thumbnail_complete" {
+  name                      = "thumbnail-complete"
+  message_retention_seconds = 86400  # 1 day
 }
